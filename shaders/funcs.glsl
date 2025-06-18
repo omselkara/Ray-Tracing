@@ -26,13 +26,11 @@ vec2 randomPointOnCircle(inout uint state){
 }
 
 vec3 computeBarycentric(vec3 A, vec3 B, vec3 C, vec3 P) {
-    // Üçgenin alanını hesapla (ABC üçgeni)
     vec3 v0 = B - A;
     vec3 v1 = C - A;
     vec3 normal = cross(v0, v1);
-    float areaABC = length(normal); // Üçgen ABC'nin alanı (2 katı, çünkü |normal|)
+    float areaABC = length(normal);
 
-    // Alt üçgenlerin alanlarını hesapla
     vec3 normalPBC = cross(B - P, C - P);
     float areaPBC = length(normalPBC);
 
@@ -42,7 +40,6 @@ vec3 computeBarycentric(vec3 A, vec3 B, vec3 C, vec3 P) {
     vec3 normalPAB = cross(A - P, B - P);
     float areaPAB = length(normalPAB);
 
-    // Barysentirik koordinatları hesapla
     float u = areaPBC / areaABC;
     float v = areaPCA / areaABC;
     float w = areaPAB / areaABC;

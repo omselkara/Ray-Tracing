@@ -15,3 +15,8 @@ struct Ray{
   vec3 dir;
   vec3 invDir;
 };
+
+struct Pixel {
+  vec3 colorSum;
+  uint sampleCount;
+};

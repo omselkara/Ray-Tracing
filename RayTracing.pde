@@ -1,141 +1,193 @@
+import java.awt.Shape;
+import java.io.FileReader;
+import java.util.Arrays;
+import java.util.List;
+
 ArrayList<Character> downKeys;
-Camera cam;
 
 int count = 0;
 float totalFrameRate = 0;
 float time = 0;
 
+boolean preparedData = false;
+boolean finishedSetup = false;
+boolean loadedTheModel = false;
+String loadingModelName = "None";
+
+boolean showStats = false;
+
+int imageIndex = 0;
+
 Scene scene;
 
-PShader correcter;
-
+Vector center = new Vector(0);
+float deltaFrameTime = 40;
+float totalVideoTime = 21600;
+float deltaAngle = 2*PI*deltaFrameTime/totalVideoTime;
+float rotationRadius = 11;
 
 void setup() {
   frameRate(1000);
   scene = new Scene();
   downKeys = new ArrayList<>();
-  cam = new Camera(new Vector(14.633389 ,-4.374190 ,13.297768),2.53,2.05);
-  
-  size(1280,720,P3D);
+  scene.cam = new Camera(new Vector(center.x+rotationRadius,-5,center.z),-PI/2.0,PI/1.75);
+  size(1280, 720, P2D);
   //fullScreen(P3D);
-  mainTex = createGraphics(width, height, P3D);
-  mainTexOld = createGraphics(width, height, P3D);
-  
+  pgl = (PJOGL)beginPGL();
+  gl = pgl.gl.getGL4();
+
   ArrayList<String> shaders = new ArrayList<>();
   shaders.add("shaders/structs.glsl");
   shaders.add("shaders/funcs.glsl");
   shaders.add("shaders/camera.glsl");
   shaders.add("shaders/shape.glsl");
   shaders.add("shaders/ray.glsl");
-  shaders.add("shaders/shader.glsl");
+  shaders.add("shaders/rayTracer.glsl");
   checker = loadShader("shaders/checker.glsl");
   imageShader = loadShader("shaders/image.glsl");
-  correcter = loadShader("shaders/correcter.glsl");
-  
+
   loadShaders(shaders);
   background(0);
-  
-  rayTracer = loadShader("shaders/rayTracer.glsl");  
-  rayTracer.set("u_resolution", float(width), float(height));
-  correcter.set("u_resolution", float(width), float(height));
-    
-  shader.set("reflectCount",3);
-  shader.set("rayCount",100);
-  shader.set("blurStrength",2.0);
-  shader.set("showAmbientLight",true);
+
+  shader = loadShader("shaders/shader.glsl");
+  shader.set("u_resolution", float(width), float(height));
+
+  gl.glUseProgram(computeProgram);
+  gl.glUniform1i(gl.glGetUniformLocation(computeProgram, "reflectCount"), 10);
+  gl.glUniform1i(gl.glGetUniformLocation(computeProgram, "rayCount"), 1);
+  gl.glUniform1f(gl.glGetUniformLocation(computeProgram, "blurStrength"), 2.0);
+  gl.glUniform1i(gl.glGetUniformLocation(computeProgram, "showAmbientLight"), 1);
   time = millis();
+  thread("setupScene");
+  
 }
 
 
 
 void draw() {
-if (frameCount==2){
+  background(0);
+  if (!finishedSetup) {
+    background(0);
+    textAlign(CENTER, CENTER);
+    textSize(60);
+    if (loadedTheModel) {
+      text("Calculating BVH", width/2.0, height/2.0);
+      text(String.format("%d", scene.splittedNodes.size()), width/2, height/2+60);
+    } else {
+      text("Loading the Model", width/2.0, height/2.0);
+      text(loadingModelName, width/2, height/2+60);
+    }
+    if (preparedData) {
+      initShaderValues(scene);
+      finishedSetup = true;
+      reset();
+    }
+  } else {
+    updateShaderValues();
+    runComputeShader();
+    count++;
+
+    shader(shader);
+    rect(0, 0, width, height);
+    resetShader();
+
+    handleKeys();
     
-    cam = new Camera(new Vector(5.3,1.6,-2.8),-0.866,1.92);
-  
-    Material ground = new Material();
-    ground.col = getConstantColor(new Color(0.5));
+        
     
-    Material mat1 = new Material();
-    mat1.col = getConstantColor(rgb(255));
-    mat1.dielectric = 1.5;
     
-    Material mat2 = new Material();
-    mat2.col = getConstantColor(new Color(0.4,0.2,0.1));
-    
-    Material mat3 = new Material();
-    mat3.col = getConstantColor(new Color(0.7,0.6,0.5));
-    mat3.specularColor = new Color(0.7,0.6,0.5);
-    mat3.smoothness = 1.0;
-    mat3.specularChance = 1.0;
-    
-    BVHNode node = new BVHNode();
-    node.shapes.add(new Sphere(new Vector(0,-1000,0),ground,1000));
-    node.shapes.add(new Sphere(new Vector(0,1,0),mat1,1));
-    node.shapes.add(new Sphere(new Vector(-4,1,0),mat2,1));
-    node.shapes.add(new Sphere(new Vector(4,1,0),mat3,1));
-    
-    for (int a=-11;a<11;a++){
-      for (int b=-11;b<11;b++){
-        float matType = random(0,1);
-        Vector center = new Vector(a+0.9*random(0,1),0.2,b+0.9*random(0,1));
-        if (Vector.distance(center,new Vector(4,0.2,0))>0.9){
-          Material mat = new Material();
-          if (matType<0.8){
-            Color col = new Color(random(0,1)*random(0,1),random(0,1)*random(0,1),random(0,1)*random(0,1));
-            mat.col = getConstantColor(col);
-            mat.smoothness = random(0.75,1);
-            mat.specularChance = random(0,0.2);
-            mat.specularColor = col;
-          }
-          else if (matType<0.95){
-            Color col = new Color(random(0.5,1),random(0.5,1),random(0.5,1));
-            mat.col = getConstantColor(col);
-            mat.specularColor = col;
-            mat.smoothness = random(0,0.5);
-            mat.specularChance = 1.0;
-          }
-          else{
-            mat.col = getConstantColor(rgb(255));
-            mat.dielectric = 1.5;
-          }
-          node.shapes.add(new Sphere(center,mat,0.2));
-        }
+    if ((millis()-time)/1000.0 >= deltaFrameTime){
+      //saveFrame("images/frame"+imageIndex+".png");      
+      imageIndex++;
+      time = millis();
+      float x = center.x+rotationRadius*cos(deltaAngle*imageIndex);
+      float y = scene.cam.pos.y;
+      float z = center.z+rotationRadius*sin(deltaAngle*imageIndex);
+      scene.cam.pos.x = x;
+      scene.cam.pos.y = y;
+      scene.cam.pos.z = z;
+      scene.cam.rotateX(-deltaAngle);
+      scene.cam.update();
+      scene.updateCameraValuesShader();
+      reset();
+      println(imageIndex/(totalVideoTime/deltaFrameTime)*100);
+    }
+
+    deltatime = min(1f/frameRate, 0.05);
+    totalFrameRate += frameRate;
+    if (showStats) {
+      fill(255);
+      textSize(30);
+      textAlign(LEFT, TOP);
+      float avg = totalFrameRate/(count);
+
+      text(String.format("FPS:%.1f", frameRate), 5, 0);
+      text(String.format("AVG:%.1f", avg), 5, 30);
+      text(String.format("SECOND:%.1f", ((float)millis()-time)/1000.0), 5, 60);
+    }
+  }
+}
+
+void keyPressed() {
+  if (finishedSetup) {
+    downKeys.add((""+key).toLowerCase().charAt(0));
+  }
+  if (key=='r' || key=='R') {
+    showStats = !showStats;
+  }
+}
+
+void keyReleased() {
+  if (finishedSetup) {
+    for (int i=0; i<downKeys.size(); i++) {
+      if (downKeys.get(i)==(""+key).toLowerCase().charAt(0)) {
+        downKeys.remove(i);
+        break;
       }
     }
-    scene.nodes.add(node);    
-    initShaderValues(scene,32);
+  }
+}
+
+void reset() {
+  if (finishedSetup) {
+    count = 0;
+    totalFrameRate = 0;
+    gl.glBindBuffer(GL4.GL_SHADER_STORAGE_BUFFER, ssboId[ssboId.length-1]);
+    gl.glClearBufferData(
+      GL4.GL_SHADER_STORAGE_BUFFER,
+      GL4.GL_R32F,
+      GL4.GL_RED,
+      GL4.GL_FLOAT,
+      null
+      );
+    time = millis();
+  }
+}
+
+void mouseDragged() {
+  if (finishedSetup) {
+    float dx = mouseX-pmouseX;
+    float dy = mouseY-pmouseY;
+    scene.cam.rotateX(dx/720f);
+    scene.cam.rotateY(dy/720.0);
+    scene.cam.update();
+    scene.updateCameraValuesShader();
     reset();
   }
-  background(0);
-  updateShaderValues();     
-  mainTex.beginDraw();
-  mainTex.shader(shader);
-  mainTex.rect(0, 0, width, height);
-  mainTex.resetShader();
-  mainTex.endDraw();
-  
-  rayTracer.set("MainTexOld",mainTexOld);
-  rayTracer.set("MainTex",mainTex);
-  
-  rayTracer.set("numRenderedFrames",(float)count);
-  
-  mainTexOld.beginDraw();
-  mainTexOld.shader(rayTracer);
-  mainTexOld.rect(0, 0, width, height);
-  mainTexOld.resetShader();
-  mainTexOld.endDraw();
-  count++;
-  
-  correcter.set("MainTexOld",mainTexOld);  
-  shader(correcter);
-  rect(0,0,width,height);
-  resetShader();
-  
-  fill(255);
-  textSize(30);
-  textAlign(LEFT, TOP);
-  text(String.format("FPS:%.1f",frameRate),5,0);
+}
+
+void mouseWheel(MouseEvent event) {
+  if (finishedSetup) {
+    float e = event.getCount();
+    povDst -= e/10.0;
+    povDst = max(0.70, min(povDst, 2.5));
+    scene.cam.update();
+    scene.updateCameraValuesShader();
+    reset();
+  }
+}
+
+void handleKeys() {
   float x = 0;
   float y = 0;
   float z = 0;
@@ -153,64 +205,106 @@ if (frameCount==2){
     } else if (i=='q') {
       y += 1;
     }
-    if (i==' '){
+    if (i==' ') {
       reset();
     }
   }
   if (x != 0 || y != 0 || z != 0) {
-    cam.moveX(x);
-    cam.moveY(y);
-    cam.moveZ(z);
-    cam.update();
+    scene.cam.moveX(x);
+    scene.cam.moveY(y);
+    scene.cam.moveZ(z);
+    scene.cam.update();
+    scene.updateCameraValuesShader();
     reset();
-    println(cam.pos);
-    println(cam.angleX);
-    println(cam.angleY);
-  }
-  deltatime = min(1f/frameRate,0.05);
-  totalFrameRate += frameRate;
-  float avg = totalFrameRate/(count);
-  text(String.format("AVG:%.1f",avg),5,30);
-  text(String.format("SECOND:%.1f",((float)millis()-time)/1000.0),5,60);
-  
-}
-
-void keyPressed() {
-  downKeys.add(key);
-}
-
-void keyReleased() {
-  for (int i=0; i<downKeys.size(); i++) {
-    if (downKeys.get(i)==key) {
-      downKeys.remove(i);
-      break;
+    if (showStats) {
+      println(scene.cam.pos);
+      println(scene.cam.angleX);
+      println(scene.cam.angleY);
     }
   }
 }
 
-void reset(){
-  count = 0;
-  totalFrameRate = 0;
-  mainTexOld.beginDraw();
-  mainTexOld.fill(0,0,0);
-  mainTexOld.rect(0,0,width,height);
-  mainTexOld.endDraw();
-  time = millis();
-}
+void setupScene() {
+  float time = millis();
+  List<Shape> shapes = new ArrayList<>();  
 
-void mouseDragged() {
-  float dx = mouseX-pmouseX;
-  float dy = mouseY-pmouseY;
-  cam.rotateX(dx/720f);
-  cam.rotateY(dy/720.0);
-  cam.update();
-  reset();
-}
+  Material mat = new Material();
+  mat.smoothness = 1;
+  mat.specularChance = 0.1;
+  mat.col = rgb(0,0,255);
+  addModel("models/Monkey.obj", new Vector(0, -4), new Vector(4), new Vector(0,PI/2,0),mat, shapes, false);
+  
+  BVHNode node = new BVHNode(shapes);
+  scene.nodes.add(node);
 
-void mouseWheel(MouseEvent event) {
-  float e = event.getCount();
-  povDst -= e/10.0;
-  povDst = max(0.70,min(povDst,2.5));
-  cam.update();
-  reset();
+  println("Loading Took: ", millis()-time);
+  Material matLeft = new Material();
+  matLeft.col = rgb(200);
+  matLeft.smoothness = 1;
+  matLeft.specularChance = 0.3;
+  matLeft.specularColor = rgb(255);
+  Material matRight = new Material();
+  matRight.col = rgb(50, 50, 255);
+  matRight.smoothness = 1;
+  matRight.specularChance = 0.995;
+  matRight.specularColor = rgb(50, 50, 255);
+  Material matTop = new Material();
+  matTop.col = rgb(255);
+  matTop.smoothness = 1;
+  matTop.specularChance = 0.995;
+  matTop.specularColor = rgb(255);
+  Material matBottom = new Material();
+  matBottom.col = rgb(50, 255, 50);
+  matBottom.smoothness = 1;
+  matBottom.specularChance = 0.995;
+  matBottom.specularColor = rgb(50, 255, 50);
+  Material matFront = new Material();
+  matFront.col = rgb(120,255,50);
+  matFront.smoothness = 1;
+  matFront.specularChance = 0.995;
+  matFront.specularColor = rgb(120,255,50);
+  Material matRear = new Material();
+  matRear.col = rgb(255,50,50);
+  matRear.smoothness = 1;
+  matRear.specularChance = 0.995;
+  matRear.specularColor = rgb(255,50,50);
+  Material light = new Material();
+  light.col = rgb(0);
+  light.lightCol = rgb(255);
+  light.isLight = 3;
+
+  
+  List<Shape> roomShapes = new ArrayList<>();
+  
+  float x1 = -30;
+  float x2 = 30;
+  float y1 = -10;
+  float y2 = 10;
+  float z1 = -30;
+  float z2 = 30;
+
+  addRectangle(new Vector(x1, y1, z2), new Vector(x1, y1, z1), new Vector(x1, y2, z1), new Vector(x1, y2, z2), matLeft, roomShapes);
+  addRectangle(new Vector(x2, y2, z2), new Vector(x2, y2, z1), new Vector(x2, y1, z1), new Vector(x2, y1, z2), matLeft, roomShapes);
+  addRectangle(new Vector(x1, y2, z2), new Vector(x1, y2, z1), new Vector(x2, y2, z1), new Vector(x2, y2, z2), matLeft, roomShapes);
+  addRectangle(new Vector(x2, y1, z2), new Vector(x2, y1, z1), new Vector(x1, y1, z1), new Vector(x1, y1, z2), matLeft, roomShapes);
+  addRectangle(new Vector(x1, y2, z2), new Vector(x2, y2, z2), new Vector(x2, y1, z2), new Vector(x1, y1, z2), matLeft, roomShapes);
+  addRectangle(new Vector(x1, y1, z1), new Vector(x2, y1, z1), new Vector(x2, y2, z1), new Vector(x1, y2, z1), matLeft, roomShapes);
+  
+  for (int z=0;z<60;z+=20){
+    for (int x=0;x<60;x+=20){
+      addRectangle(new Vector(-25+x, +9.75, -25+z), new Vector(-25+x, +9.75, -20+z), new Vector(-20+x, +9.75, -20+z), new Vector(-20+x, +9.75, -25+z), light, roomShapes);
+    }
+  }
+  
+  
+  
+  BVHNode roomNode = new BVHNode(roomShapes);
+  //roomNode.dontSplit = true;
+  scene.nodes.add(roomNode);
+  loadedTheModel = true;
+
+
+  scene.splitNodes(32);
+  preparedData = true;
+  
 }

@@ -1,0 +1,16 @@
+import bpy
+
+for mat in bpy.data.materials:
+    # Property eklemek için mat["property_name"] = value
+    if "lightCol" not in mat:
+        mat["lightCol"] = [0.0,0.0,0.0]
+    if "isLight" not in mat:
+        mat["isLight"] = 0.0
+    if "smoothness" not in mat:
+        mat["smoothness"] = 1.0
+    if "specularChance" not in mat:
+        mat["specularChance"] = 0.0
+    if "specularColor" not in mat:
+        mat["specularColor"] = [1.0,1.0,1.0]
+    if "dielectric" not in mat:
+        mat["dielectric"] = 0.0

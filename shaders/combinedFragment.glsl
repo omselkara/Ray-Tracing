@@ -16,6 +16,11 @@ struct Ray{
   vec3 dir;
   vec3 invDir;
 };
+
+struct Pixel {
+  vec3 colorSum;
+  uint sampleCount;
+};
 //------------------------------  shaders/structs.glsl  ------------------------------
 
 
@@ -49,13 +54,11 @@ vec2 randomPointOnCircle(inout uint state){
 }
 
 vec3 computeBarycentric(vec3 A, vec3 B, vec3 C, vec3 P) {
-    // Üçgenin alanını hesapla (ABC üçgeni)
     vec3 v0 = B - A;
     vec3 v1 = C - A;
     vec3 normal = cross(v0, v1);
-    float areaABC = length(normal); // Üçgen ABC'nin alanı (2 katı, çünkü |normal|)
+    float areaABC = length(normal);
 
-    // Alt üçgenlerin alanlarını hesapla
     vec3 normalPBC = cross(B - P, C - P);
     float areaPBC = length(normalPBC);
 
@@ -65,7 +68,6 @@ vec3 computeBarycentric(vec3 A, vec3 B, vec3 C, vec3 P) {
     vec3 normalPAB = cross(A - P, B - P);
     float areaPAB = length(normalPAB);
 
-    // Barysentirik koordinatları hesapla
     float u = areaPBC / areaABC;
     float v = areaPCA / areaABC;
     float w = areaPAB / areaABC;
@@ -120,97 +122,65 @@ layout (std430, binding = 2) buffer MainNodeBuffer {
     float mainNodes[];
 };
 
-layout(std430, binding = 3) buffer ImageDataBuffer {
-    float imagePixels[];
+
+layout(std430, binding = 3) buffer Pixels {
+  Pixel pixels[];
 };
 
-layout(std430, binding = 4) buffer ImageIdBuffer {
-    float imageId[];
-};
-
-int shapeAttributes = (3*3+3+1+1+3+1+1+3+1+1+1+3*3);
-int BVHAttributes = (3+3+2);
+int shapeAttributes = 30;
+int BVHAttributes = 8;
 
 uniform int shapeCount;
 uniform int BVHCount;
 uniform int mainBVHCount;
 uniform int imageCount;
 
-vec3 getShapeLinePos(int shapeIndex,int lineIndex){
-    return vec3(shapes[shapeIndex*shapeAttributes+lineIndex*3],shapes[shapeIndex*shapeAttributes+lineIndex*3+1],shapes[shapeIndex*shapeAttributes+lineIndex*3+2]);
-}
-
-int getShapeType(int shapeIndex){ ///float mı hızlı uint mi dene
-    return int(shapes[shapeIndex*shapeAttributes+3*3+3]);
-}
-
-vec3 getShapeCenter(int shapeIndex){
+vec3 getShapePos1(int shapeIndex){
     return vec3(shapes[shapeIndex*shapeAttributes],shapes[shapeIndex*shapeAttributes+1],shapes[shapeIndex*shapeAttributes+2]);
 }
-
-float getShapeRadius(int shapeIndex){
-    return shapes[shapeIndex*shapeAttributes+3*3+4];
+vec3 getShapePos2(int shapeIndex){
+    return vec3(shapes[shapeIndex*shapeAttributes+3],shapes[shapeIndex*shapeAttributes+4],shapes[shapeIndex*shapeAttributes+5]);
+}
+vec3 getShapePos3(int shapeIndex){
+    return vec3(shapes[shapeIndex*shapeAttributes+6],shapes[shapeIndex*shapeAttributes+7],shapes[shapeIndex*shapeAttributes+8]);
 }
 
-vec3 getShapeNormal(int shapeIndex){
-    return vec3(shapes[shapeIndex*shapeAttributes+3*3],shapes[shapeIndex*shapeAttributes+3*3+1],shapes[shapeIndex*shapeAttributes+3*3+2]);
-}
-
-float getShapeSpecularChance(int shapeIndex){
-    return shapes[shapeIndex*shapeAttributes+3*3+9];
-}
-
-float getShapeSmoothness(int shapeIndex){
-    return shapes[shapeIndex*shapeAttributes+3*3+8];
+vec3 getShapeColor(int shapeIndex){
+    return vec3(shapes[shapeIndex*shapeAttributes+9],shapes[shapeIndex*shapeAttributes+10],shapes[shapeIndex*shapeAttributes+11]);
 }
 
 vec3 getShapeLightCol(int shapeIndex){
-    return vec3(shapes[shapeIndex*shapeAttributes+3*3+5],shapes[shapeIndex*shapeAttributes+3*3+6],shapes[shapeIndex*shapeAttributes+3*3+7]);
+    return vec3(shapes[shapeIndex*shapeAttributes+12],shapes[shapeIndex*shapeAttributes+13],shapes[shapeIndex*shapeAttributes+14]);
 }
 
-int isShapeSecondPart(int shapeIndex){
-    return int(shapes[shapeIndex*shapeAttributes+3*3+14]);
+float getShapeSmoothness(int shapeIndex){
+    return shapes[shapeIndex*shapeAttributes+15];
 }
 
-int isShapeBarycenteric(int shapeIndex){
-    return int(shapes[shapeIndex*shapeAttributes+3*3+15]);
-}
-
-vec3 getShapeNormal1(int shapeIndex){
-    return vec3(shapes[shapeIndex*shapeAttributes+3*3+16],shapes[shapeIndex*shapeAttributes+3*3+17],shapes[shapeIndex*shapeAttributes+3*3+18]);
-}
-
-vec3 getShapeNormal2(int shapeIndex){
-    return vec3(shapes[shapeIndex*shapeAttributes+3*3+19],shapes[shapeIndex*shapeAttributes+3*3+20],shapes[shapeIndex*shapeAttributes+3*3+21]);
-}
-
-vec3 getShapeNormal3(int shapeIndex){
-    return vec3(shapes[shapeIndex*shapeAttributes+3*3+22],shapes[shapeIndex*shapeAttributes+3*3+23],shapes[shapeIndex*shapeAttributes+3*3+24]);
-}
-
-vec3 getImageCol(vec2 uv,int shapeIndex){   
-    int startIndex = int(imageId[shapeIndex*3]);
-    int resX = int(imageId[shapeIndex*3+1]);
-    int resY = int(imageId[shapeIndex*3+2]);
-    //uv = vec2(mod(uv.x,1.0),mod(uv.y,1.0));
-    int x = int(uv.x*(resX-1));
-    //if (x==resX) x = resX-1;
-    int y = int(uv.y*(resY-1));
-    //if (y==resY)y = resY-1;
-    int index = int(x+y*resX);
-    return vec3(imagePixels[startIndex+3*index],imagePixels[startIndex+3*index+1],imagePixels[startIndex+3*index+2]);
-    //if (uv.x>1.0) return vec3(0.0,0.0,1.0);
-    //if (uv.y>1.0) return vec3(1.0);
-    //return vec3(uv,0.0);
+float getShapeSpecularChance(int shapeIndex){
+    return shapes[shapeIndex*shapeAttributes+16];
 }
 
 vec3 getShapeSpecularColor(int shapeIndex){
-    return vec3(shapes[shapeIndex*shapeAttributes+3*3+10],shapes[shapeIndex*shapeAttributes+3*3+11],shapes[shapeIndex*shapeAttributes+3*3+12]);;
+    return vec3(shapes[shapeIndex*shapeAttributes+17],shapes[shapeIndex*shapeAttributes+18],shapes[shapeIndex*shapeAttributes+19]);
 }
 
 float getShapeDielectric(int shapeIndex){
-    return shapes[shapeIndex*shapeAttributes+3*3+13];
+    return shapes[shapeIndex*shapeAttributes+20];
 }
+
+vec3 getShapeNormal1(int shapeIndex){
+    return vec3(shapes[shapeIndex*shapeAttributes+21],shapes[shapeIndex*shapeAttributes+22],shapes[shapeIndex*shapeAttributes+23]);
+}
+
+vec3 getShapeNormal2(int shapeIndex){
+    return vec3(shapes[shapeIndex*shapeAttributes+24],shapes[shapeIndex*shapeAttributes+25],shapes[shapeIndex*shapeAttributes+26]);
+}
+
+vec3 getShapeNormal3(int shapeIndex){
+    return vec3(shapes[shapeIndex*shapeAttributes+27],shapes[shapeIndex*shapeAttributes+28],shapes[shapeIndex*shapeAttributes+29]);
+}
+
 
 vec3 getBVHTMin(int BVHIndex){
     return vec3(BVHNodes[BVHIndex*BVHAttributes],BVHNodes[BVHIndex*BVHAttributes+1],BVHNodes[BVHIndex*BVHAttributes+2]);
@@ -234,221 +204,52 @@ int getTotalNodeIndex(int mainNodeIndex){
 }
 
 vec3 getNormal(int shapeIndex,vec3 pos){
-    float type = getShapeType(shapeIndex);
-    if (type==2.0) return normalize(pos-getShapeCenter(shapeIndex));
-    if (isShapeBarycenteric(shapeIndex)==0)return getShapeNormal(shapeIndex);
-    vec3 A = getShapeLinePos(shapeIndex,0);
-    vec3 B = getShapeLinePos(shapeIndex,1);
-    vec3 C = getShapeLinePos(shapeIndex,2);
+    vec3 A = getShapePos1(shapeIndex);
+    vec3 B = getShapePos2(shapeIndex);
+    vec3 C = getShapePos3(shapeIndex);
     vec3 normal1 = getShapeNormal1(shapeIndex);
     vec3 normal2 = getShapeNormal2(shapeIndex);
     vec3 normal3 = getShapeNormal3(shapeIndex); 
     vec3 uvw = computeBarycentric(A,B,C,pos);
     return uvw.x*normal1+uvw.y*normal2+uvw.z*normal3;
 }
-
-vec2 getRectUV(vec3 pos,int shapeIndex){
-    int type = getShapeType(shapeIndex);
-    if (type==1 || type==3){
-        vec3 a = getShapeLinePos(shapeIndex,0);
-        vec3 b = getShapeLinePos(shapeIndex,1);
-        vec3 c = getShapeLinePos(shapeIndex,2);
-        vec3 AB = a-b;
-        vec3 CB = c-b;
-        vec3 posB = pos-b;
-        float u = dot(AB,posB)/dot(AB,AB);
-        float v = dot(CB,posB)/dot(CB,CB);
-        if (isShapeSecondPart(shapeIndex)==1.0)return vec2(1.0-u,1.0-v);
-        return vec2(u,v);
-    }
-    vec3 point = getNormal(shapeIndex,pos);
-    float theta = atan(point.z,point.x);
-    float phi = asin(point.y);
-    return vec2(theta/(2.0*PI),phi/PI+0.5);
-}
 //------------------------------  shaders/shape.glsl  ------------------------------
 
 
 
 //------------------------------  shaders/ray.glsl  ------------------------------
-int checkedShape = 0;
-int checkedBBox = 0;
-
-Intersection getClosestIntersection(Ray ray,int fromShapeIndex){
-    Intersection intersection;
-    intersection.shapeIndex = -1;
-    intersection.dst = inf;
-    for (int index=0;index<shapeCount;index++){        
-        int type = getShapeType(index);
-        if (index==fromShapeIndex)continue;
-        checkedShape++;
-        if (type==1 || type==3){
-            vec3 a = getShapeLinePos(index,0);
-            vec3 b = getShapeLinePos(index,1);
-            vec3 c = getShapeLinePos(index,2);
-            vec3 edgeAB = b-a;
-            vec3 edgeAC = c-a;
-            vec3 normalVector = cross(edgeAB,edgeAC);
-            
-            
-            vec3 ao = ray.pos - a;
-            vec3 dao = cross(ao,ray.dir);
-
-            float determinant = -dot(ray.dir, normalVector);
-            float invDet = 1.0 / determinant;
-
-            float dst = dot(ao,normalVector) * invDet;
-            float u = dot(edgeAC,dao) * invDet;
-            float v = -dot(edgeAB,dao) * invDet;
-            float w = 1.0 - u - v;
-
-            bool hit = determinant >= 1E-6 && dst >= 0.0 && u >= 0.0 && v >= 0.0 && w >= 0.0;
-            if (hit && intersection.dst > dst){
-                intersection.pos = ray.pos + ray.dir * dst;
-                intersection.shapeIndex = index;
-                intersection.frontFace = true;
-                intersection.dst = dst;
-            }
-            else{
-                
-                edgeAB = b-c;
-                edgeAC = a-c;
-                normalVector = cross(edgeAB,edgeAC);
-                
-                
-                ao = ray.pos - c;
-                dao = cross(ao,ray.dir);
-
-                determinant = -dot(ray.dir, normalVector);
-                invDet = 1.0 / determinant;
-
-                dst = dot(ao,normalVector) * invDet;
-                u = dot(edgeAC,dao) * invDet;
-                v = -dot(edgeAB,dao) * invDet;
-                w = 1.0 - u - v;
-
-                hit = determinant >= 1E-6 && dst >= 0.0 && u >= 0.0 && v >= 0.0 && w >= 0.0;
-                if (hit && (intersection.dst == -1.0 || intersection.dst > dst)){
-                    intersection.pos = ray.pos + ray.dir * dst;
-                    intersection.shapeIndex = index;
-                    intersection.frontFace = false;
-                    intersection.dst = dst;
-                }
-            }
-        }
-        else if (type==2){
-            vec3 pos = ray.pos - getShapeCenter(index);
-            float radius = getShapeRadius(index);
-            float a = dot(pos,ray.dir);
-            float delta = a*a - (dot(pos,pos)-radius*radius);
-            if (delta>=0){
-                float dst = -a - sqrt(delta);
-                if (dst>=0.0 && intersection.dst > dst){
-                    intersection.pos = ray.pos + ray.dir * dst;
-                    intersection.shapeIndex = index;
-                    intersection.dst = dst;
-                    intersection.frontFace = true;
-                }
-                if (dst<=0.0){
-                    dst = -a + sqrt(delta);
-                    if (dst>=0.0 && intersection.dst > dst){
-                        intersection.pos = ray.pos + ray.dir * dst;
-                        intersection.shapeIndex = index;
-                        intersection.dst = dst;
-                        intersection.frontFace = false;
-                    }
-                }
-            }
-        }
-    }
-    return intersection;
-}
-
 Intersection getClosestIntersection(float closestDst,Ray ray,int from,int to,int fromShapeIndex){
     Intersection intersection;
     intersection.shapeIndex = -1;
     intersection.dst = closestDst;
     for (int index=from;index<to;index++){        
-        int type = getShapeType(index);
         if (index==fromShapeIndex)continue;
-        checkedShape++;
-        if (type==1 || type==3){
-            vec3 a = getShapeLinePos(index,0);
-            vec3 b = getShapeLinePos(index,1);
-            vec3 c = getShapeLinePos(index,2);
-            vec3 edgeAB = b-a;
-            vec3 edgeAC = c-a;
-            vec3 normalVector = cross(edgeAB,edgeAC);
-            
-            
-            vec3 ao = ray.pos - a;
-            vec3 dao = cross(ao,ray.dir);
 
-            float determinant = -dot(ray.dir, normalVector);
-            float invDet = 1.0 / determinant;
+        vec3 a = getShapePos1(index);
+        vec3 b = getShapePos2(index);
+        vec3 c = getShapePos3(index);
+        vec3 edgeAB = b-a;
+        vec3 edgeAC = c-a;
+        vec3 normalVector = cross(edgeAB,edgeAC);
+        
+        float determinant = -dot(ray.dir, normalVector);
 
-            float dst = dot(ao,normalVector) * invDet;
-            float u = dot(edgeAC,dao) * invDet;
-            float v = -dot(edgeAB,dao) * invDet;
-            float w = 1.0 - u - v;
+        if (abs(determinant) < 1E-6)continue;        
+        vec3 ao = ray.pos - a;
+        vec3 dao = cross(ao,ray.dir);
+        
+        float invDet = 1.0 / determinant;
 
-            bool hit = determinant >= 1E-6 && dst >= 0.0 && u >= 0.0 && v >= 0.0 && w >= 0.0;
-            if (hit && intersection.dst > dst){
-                intersection.pos = ray.pos + ray.dir * dst;
-                intersection.shapeIndex = index;
-                intersection.frontFace = true;
-                intersection.dst = dst;
-            }
-            else{
-                
-                edgeAB = b-c;
-                edgeAC = a-c;
-                normalVector = cross(edgeAB,edgeAC);
-                
-                
-                ao = ray.pos - c;
-                dao = cross(ao,ray.dir);
+        float dst = dot(ao,normalVector) * invDet;
+        float u = dot(edgeAC,dao) * invDet;
+        float v = -dot(edgeAB,dao) * invDet;
+        float w = 1.0 - u - v;
 
-                determinant = -dot(ray.dir, normalVector);
-                invDet = 1.0 / determinant;
-
-                dst = dot(ao,normalVector) * invDet;
-                u = dot(edgeAC,dao) * invDet;
-                v = -dot(edgeAB,dao) * invDet;
-                w = 1.0 - u - v;
-
-                hit = determinant >= 1E-6 && dst >= 0.0 && u >= 0.0 && v >= 0.0 && w >= 0.0;
-                if (hit && (intersection.dst == -1.0 || intersection.dst > dst)){
-                    intersection.pos = ray.pos + ray.dir * dst;
-                    intersection.shapeIndex = index;
-                    intersection.frontFace = false;
-                    intersection.dst = dst;
-                }
-            }
-        }
-        else if (type==2){
-            vec3 pos = ray.pos - getShapeCenter(index);
-            float radius = getShapeRadius(index);
-            float a = dot(pos,ray.dir);
-            float delta = a*a - (dot(pos,pos)-radius*radius);
-            if (delta>=0){
-                float dst = -a - sqrt(delta);
-                if (dst>=0.0 && intersection.dst > dst){
-                    intersection.pos = ray.pos + ray.dir * dst;
-                    intersection.shapeIndex = index;
-                    intersection.dst = dst;
-                    intersection.frontFace = true;
-                }
-                if (dst<=0.0){
-                    dst = -a + sqrt(delta);
-                    if (dst>=0.0 && intersection.dst > dst){
-                        intersection.pos = ray.pos + ray.dir * dst;
-                        intersection.shapeIndex = index;
-                        intersection.dst = dst;
-                        intersection.frontFace = false;
-                    }
-                }
-            }
+        if (dst >= 0.0 && u >= 0.0 && v >= 0.0 && w >= 0.0 && intersection.dst > dst){
+            intersection.pos = ray.pos + ray.dir * dst;
+            intersection.shapeIndex = index;
+            intersection.frontFace = determinant>1E-6;
+            intersection.dst = dst;
         }
     }
     return intersection;
@@ -458,11 +259,9 @@ Intersection getClosestIntersection(float closestDst,Ray ray,int from,int to,int
 
 
 
-//------------------------------  shaders/shader.glsl  ------------------------------
+//------------------------------  shaders/rayTracer.glsl  ------------------------------
 uniform vec2 u_resolution;
-//uniform float u_time;
 uniform int frame;
-out vec4 gl_FragColor;
 
 uniform int reflectCount;
 uniform int rayCount;
@@ -532,7 +331,6 @@ float dstBbox(Ray ray,int nodeIndex){
     float tMin = 0;
     bool changed = false;
     for (int axis=0;axis<3;axis++){
-        //if (rayDir[axis]==0.0)continue;
         float t0 = (tMinBVH[axis]-ray.pos[axis])*ray.invDir[axis];
         float t1 = (tMaxBVH[axis]-ray.pos[axis])*ray.invDir[axis];
         if (t0<t1){
@@ -587,7 +385,6 @@ Intersection getIntersectionsFromBVH(float closestDst,Ray ray,int nodeIndex,int 
             }            
             continue;
         }
-        checkedBBox += 1;
         int index1 = getBVHIndex1(nodeIndex);
         int index2 = getBVHIndex2(nodeIndex);
         if (index1>index2){
@@ -685,7 +482,7 @@ vec3 rayTrace(Ray mainRay,inout uint seed){
                     rayColor *= getShapeSpecularColor(lastHitShape);     
                 }
                 else{
-                    rayColor *= getImageCol(getRectUV(intersection.pos,lastHitShape),lastHitShape);//getShapeCol(lastHitShape);
+                    rayColor *= getShapeColor(lastHitShape);
                     float ri = intersection.frontFace ? (1.0/getShapeDielectric(lastHitShape)) : getShapeDielectric(lastHitShape);
                     float cosTheta = min(dot(-ray.dir,normal),1.0);
                     float sinTheta = sqrt(1.0 - cosTheta*cosTheta);
@@ -709,7 +506,7 @@ vec3 rayTrace(Ray mainRay,inout uint seed){
                 vec3 lightCol = getShapeLightCol(lastHitShape);
                 vec3 light = lightCol;
                 lightColor += light * rayColor;
-                rayColor *= mix(getImageCol(getRectUV(intersection.pos,lastHitShape),lastHitShape),getShapeSpecularColor(lastHitShape),isSpecular);//getShapeCol(lastHitShape)
+                rayColor *= mix(getShapeColor(lastHitShape),getShapeSpecularColor(lastHitShape),isSpecular);
             }
             if (dot(rayColor,rayColor)==0.0)break;
             Ray newRay;
@@ -727,18 +524,20 @@ vec3 rayTrace(Ray mainRay,inout uint seed){
     return lightColor;
 }
 
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+uniform float time;
+
 void main() {
-    checkedShape = 0;
-    vec2 uv = gl_FragCoord.xy/u_resolution;
+    uint index = (gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * uint(u_resolution.x));
+    vec2 pos = gl_GlobalInvocationID.xy/u_resolution.xy;
+    vec2 uv = pos;
     uv.y = 1.0-uv.y;
-    uint seed = uint(gl_FragCoord.x) + uint(gl_FragCoord.y) * uint(u_resolution.x) + uint(frame * 713393);
+    uint seed = uint(gl_GlobalInvocationID.x) + uint(gl_GlobalInvocationID.y) * uint(gl_GlobalInvocationID.x) + uint(frame * 713393);
     vec2 xy = uv - vec2(0.5);
     Ray mainRay = getRay(xy);
     Intersection intersection = getClosestIntersectionBVH(mainRay,-1);
     if (intersection.shapeIndex!=-1){
-        //gl_FragColor = vec4(getShapeCol(intersection.shapeIndex),1.0);
-        //if (intersection.frontFace)gl_FragColor = vec4(1.0);
-        //else gl_FragColor = vec4(1.0,0.0,0.0,1.0);
         vec3 totalDiffuseColor = vec3(0.0);
         
         for (int i=0;i<rayCount;i++){
@@ -753,17 +552,15 @@ void main() {
             totalDiffuseColor += rayTrace(ray,seed);
         }
         vec3 diffuseColor = totalDiffuseColor/(float(rayCount));
-        gl_FragColor = vec4(diffuseColor/5.0,1.0);
-        //gl_FragColor = vec4(getNormal(intersection.shapeIndex,intersection.pos),1.0);
+        pixels[index].colorSum += diffuseColor;
+        pixels[index].sampleCount += 1;
     }
     else if (showAmbientLight){
-        gl_FragColor = vec4(ambientLight(mainRay.dir)/5.0,1.0);
-    }
-    else{
-        gl_FragColor = vec4(0.0,0.0,0.0,1.0);
+        pixels[index].colorSum += ambientLight(mainRay.dir);
+        pixels[index].sampleCount += 1;
     }
 }
-//------------------------------  shaders/shader.glsl  ------------------------------
+//------------------------------  shaders/rayTracer.glsl  ------------------------------
 
 
 

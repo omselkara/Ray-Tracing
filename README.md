@@ -11,7 +11,7 @@ A 3D rendered cupe-shaped room. The left wall is red, the right wall is blue, th
 <img src="Knight.png" alt="chess knight" width="1000">
 
 A Ferrari inside a well-lit garage with white walls.
-<img src="ferrari.png" alt="ferrari" width="1000">
+<img src="LastModel.png" alt="ferrari" width="1000">
 
 Demo video.
 [Demo](https://youtu.be/UlJwjacHxpQ)

@@ -14,4 +14,4 @@ A Ferrari inside a well-lit garage with white walls.
 <img src="LastModel.png" alt="ferrari" width="1000">
 
 Demo video.
-[Demo](https://youtu.be/UlJwjacHxpQ)
+[Demo](https://youtu.be/zVmh3xrQWFE)

@@ -13,11 +13,30 @@ uniform bool showAmbientLight;
 
 const int maxDepth = 32;
 
+uniform bool useHDR;
 
 vec3 ambientLight(vec3 dir){
-    float dst = distance(dir,sunDir);
-    return mix(mix(vec3(1.0),vec3(0.5),smoothstep(0.0,1.0,-dir.y*15.0)),
-    mix(sunColor,mix(mix(vec3(1.0),vec3(0.1025,0.2025,0.50),smoothstep(0.0,1.0,dir.y*5.0)),sunColor,max(0.0,sunBloomStrength-pow(dst-sunRadius,0.3))),step(sunRadius,dst)),step(0.0,dir.y));
+    if (useHDR){
+        float u = 0.5 + atan(dir.z, dir.x) / (2.0 * PI);
+        float v = 0.5 - asin(dir.y) / PI;
+
+        int x = int(u * float(hdrWidth));
+        int y = int(v * float(hdrHeight));
+        x = clamp(x, 0, hdrWidth - 1);
+        y = clamp(y, 0, hdrHeight - 1);
+
+        int idx = (y * hdrWidth + x) * 3;
+        vec3 hdrColor = vec3(hdrPixels[idx], hdrPixels[idx+1], hdrPixels[idx+2]);
+
+        vec3 ldr = hdrColor / (hdrColor + vec3(1.0));
+        return ldr*2.2;
+    }
+    else{
+        float dst = distance(dir,sunDir);
+        return mix(mix(vec3(1.0),vec3(0.5),smoothstep(0.0,1.0,-dir.y*15.0)),
+        mix(sunColor,mix(mix(vec3(1.0),vec3(0.1025,0.2025,0.50),smoothstep(0.0,1.0,dir.y*5.0)),sunColor,max(0.0,sunBloomStrength-pow(dst-sunRadius,0.3))),step(sunRadius,dst)),step(0.0,dir.y));
+    }
+    
 }
 float reflectance(float cosine,float dielectric){
     float r0 = (1.0 - dielectric) / (1.0 + dielectric);

@@ -1,17 +1,20 @@
-layout (std430, binding = 0) buffer ShapeBuffer {
+layout (std430, binding = 0) readonly buffer ShapeBuffer {
     float shapes[];
 };
 
-layout (std430, binding = 1) buffer BVHBuffer {
+layout (std430, binding = 1) readonly buffer BVHBuffer {
     float BVHNodes[];
 };
 
-layout (std430, binding = 2) buffer MainNodeBuffer {
+layout (std430, binding = 2) readonly buffer MainNodeBuffer {
     float mainNodes[];
 };
 
+layout(std430, binding = 3) readonly buffer HDRImage {
+  float hdrPixels[];
+};
 
-layout(std430, binding = 3) buffer Pixels {
+layout(std430, binding = 4) buffer Pixels {
   Pixel pixels[];
 };
 
@@ -22,6 +25,9 @@ uniform int shapeCount;
 uniform int BVHCount;
 uniform int mainBVHCount;
 uniform int imageCount;
+
+uniform int hdrWidth;
+uniform int hdrHeight;
 
 vec3 getShapePos1(int shapeIndex){
     return vec3(shapes[shapeIndex*shapeAttributes],shapes[shapeIndex*shapeAttributes+1],shapes[shapeIndex*shapeAttributes+2]);
@@ -101,3 +107,9 @@ vec3 getNormal(int shapeIndex,vec3 pos){
     vec3 uvw = computeBarycentric(A,B,C,pos);
     return uvw.x*normal1+uvw.y*normal2+uvw.z*normal3;
 }
+/*
+vec3 getHDRPixel(vec2 pos) {
+  int idx = int(pos.y * hdrWidth + pos.x) * 3;
+  return vec3(hdrPixels[idx], hdrPixels[idx+1], hdrPixels[idx+2]);
+}
+*/

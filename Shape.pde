@@ -170,6 +170,7 @@ void addModel(String modelName, Vector pos, Vector scale, Vector orient, List<Sh
               newMat.dielectric = Float.parseFloat(materialLine.split(" ")[1]);
             }
           }
+          materialReader.close();
           if (newMat != null) {
             materials.put(matName, newMat);
           }
@@ -179,6 +180,7 @@ void addModel(String modelName, Vector pos, Vector scale, Vector orient, List<Sh
         }
       }
     }
+    reader.close();
   }
   catch(Exception e) {
     e.printStackTrace();
@@ -287,12 +289,14 @@ void addModel(String modelName, Vector pos, Vector scale, Vector orient, Materia
           if (newMat != null) {
             materials.put(matName, newMat);
           }
+          materialReader.close();
         }
         catch (Exception e) {
           e.printStackTrace();
         }
       }
     }
+    reader.close();
   }
   catch(Exception e) {
     e.printStackTrace();

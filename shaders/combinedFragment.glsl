@@ -110,20 +110,23 @@ Ray getRay(vec2 xy){
 
 
 //------------------------------  shaders/shape.glsl  ------------------------------
-layout (std430, binding = 0) buffer ShapeBuffer {
+layout (std430, binding = 0) readonly buffer ShapeBuffer {
     float shapes[];
 };
 
-layout (std430, binding = 1) buffer BVHBuffer {
+layout (std430, binding = 1) readonly buffer BVHBuffer {
     float BVHNodes[];
 };
 
-layout (std430, binding = 2) buffer MainNodeBuffer {
+layout (std430, binding = 2) readonly buffer MainNodeBuffer {
     float mainNodes[];
 };
 
+layout(std430, binding = 3) readonly buffer HDRImage {
+  float hdrPixels[];
+};
 
-layout(std430, binding = 3) buffer Pixels {
+layout(std430, binding = 4) buffer Pixels {
   Pixel pixels[];
 };
 
@@ -134,6 +137,9 @@ uniform int shapeCount;
 uniform int BVHCount;
 uniform int mainBVHCount;
 uniform int imageCount;
+
+uniform int hdrWidth;
+uniform int hdrHeight;
 
 vec3 getShapePos1(int shapeIndex){
     return vec3(shapes[shapeIndex*shapeAttributes],shapes[shapeIndex*shapeAttributes+1],shapes[shapeIndex*shapeAttributes+2]);
@@ -213,6 +219,12 @@ vec3 getNormal(int shapeIndex,vec3 pos){
     vec3 uvw = computeBarycentric(A,B,C,pos);
     return uvw.x*normal1+uvw.y*normal2+uvw.z*normal3;
 }
+/*
+vec3 getHDRPixel(vec2 pos) {
+  int idx = int(pos.y * hdrWidth + pos.x) * 3;
+  return vec3(hdrPixels[idx], hdrPixels[idx+1], hdrPixels[idx+2]);
+}
+*/
 //------------------------------  shaders/shape.glsl  ------------------------------
 
 
@@ -275,11 +287,30 @@ uniform bool showAmbientLight;
 
 const int maxDepth = 32;
 
+uniform bool useHDR;
 
 vec3 ambientLight(vec3 dir){
-    float dst = distance(dir,sunDir);
-    return mix(mix(vec3(1.0),vec3(0.5),smoothstep(0.0,1.0,-dir.y*15.0)),
-    mix(sunColor,mix(mix(vec3(1.0),vec3(0.1025,0.2025,0.50),smoothstep(0.0,1.0,dir.y*5.0)),sunColor,max(0.0,sunBloomStrength-pow(dst-sunRadius,0.3))),step(sunRadius,dst)),step(0.0,dir.y));
+    if (useHDR){
+        float u = 0.5 + atan(dir.z, dir.x) / (2.0 * PI);
+        float v = 0.5 - asin(dir.y) / PI;
+
+        int x = int(u * float(hdrWidth));
+        int y = int(v * float(hdrHeight));
+        x = clamp(x, 0, hdrWidth - 1);
+        y = clamp(y, 0, hdrHeight - 1);
+
+        int idx = (y * hdrWidth + x) * 3;
+        vec3 hdrColor = vec3(hdrPixels[idx], hdrPixels[idx+1], hdrPixels[idx+2]);
+
+        vec3 ldr = hdrColor / (hdrColor + vec3(1.0));
+        return ldr*2.2;
+    }
+    else{
+        float dst = distance(dir,sunDir);
+        return mix(mix(vec3(1.0),vec3(0.5),smoothstep(0.0,1.0,-dir.y*15.0)),
+        mix(sunColor,mix(mix(vec3(1.0),vec3(0.1025,0.2025,0.50),smoothstep(0.0,1.0,dir.y*5.0)),sunColor,max(0.0,sunBloomStrength-pow(dst-sunRadius,0.3))),step(sunRadius,dst)),step(0.0,dir.y));
+    }
+    
 }
 float reflectance(float cosine,float dielectric){
     float r0 = (1.0 - dielectric) / (1.0 + dielectric);

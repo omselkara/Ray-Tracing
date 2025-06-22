@@ -26,13 +26,17 @@ float totalVideoTime = 21600;
 float deltaAngle = 2*PI*deltaFrameTime/totalVideoTime;
 float rotationRadius = 11;
 
+PGraphics pg;
+
 void setup() {
   frameRate(1000);
   scene = new Scene();
   downKeys = new ArrayList<>();
   scene.cam = new Camera(new Vector(center.x+rotationRadius,-5,center.z),-PI/2.0,PI/1.75);
-  size(1280, 720, P2D);
+  size(1280, 720, P2D);  
   //fullScreen(P3D);
+  pg = createGraphics(width,height,P2D);
+  
   pgl = (PJOGL)beginPGL();
   gl = pgl.gl.getGL4();
 
@@ -43,14 +47,13 @@ void setup() {
   shaders.add("shaders/shape.glsl");
   shaders.add("shaders/ray.glsl");
   shaders.add("shaders/rayTracer.glsl");
-  checker = loadShader("shaders/checker.glsl");
-  imageShader = loadShader("shaders/image.glsl");
 
   loadShaders(shaders);
   background(0);
 
   shader = loadShader("shaders/shader.glsl");
   shader.set("u_resolution", float(width), float(height));
+
 
   gl.glUseProgram(computeProgram);
   gl.glUniform1i(gl.glGetUniformLocation(computeProgram, "reflectCount"), 10);
@@ -86,17 +89,22 @@ void draw() {
     updateShaderValues();
     runComputeShader();
     count++;
-
-    shader(shader);
-    rect(0, 0, width, height);
-    resetShader();
-
+    
+    pg.beginDraw();
+    pg.background(0);
+    pg.shader(shader);
+    pg.rect(0, 0, width, height);    
+    pg.resetShader();
+    pg.endDraw();
+    
+    background(0);
+    image(pg,0,0);
     handleKeys();
     
         
     
     
-    if ((millis()-time)/1000.0 >= deltaFrameTime){
+    if ((millis()-time)/1000.0 >= deltaFrameTime && false){
       //saveFrame("images/frame"+imageIndex+".png");      
       imageIndex++;
       time = millis();
@@ -230,18 +238,22 @@ void setupScene() {
 
   Material mat = new Material();
   mat.smoothness = 1;
-  mat.specularChance = 0.1;
-  mat.col = rgb(0,0,255);
-  addModel("models/Monkey.obj", new Vector(0, -4), new Vector(4), new Vector(0,PI/2,0),mat, shapes, false);
+  //mat.specularChance = 0.1;
+  mat.isLight = 1.0;
+  mat.lightCol = rgb(255,0,0);
+  mat.col = rgb(0,0,0);
+  //addModel("models/ferrari.obj", new Vector(0, -4), new Vector(4), new Vector(0,PI/2,0),mat, shapes, false);
+  //addModel("models/ferrari.obj", new Vector(0, -10), new Vector(4), new Vector(0,0,0), shapes);
   
   BVHNode node = new BVHNode(shapes);
   scene.nodes.add(node);
 
   println("Loading Took: ", millis()-time);
   Material matLeft = new Material();
-  matLeft.col = rgb(200);
+  matLeft.col = rgb(255);
   matLeft.smoothness = 1;
-  matLeft.specularChance = 0.3;
+  //matLeft.specularChance = 0.3;
+  matLeft.dielectric = 2;
   matLeft.specularColor = rgb(255);
   Material matRight = new Material();
   matRight.col = rgb(50, 50, 255);
@@ -283,16 +295,16 @@ void setupScene() {
   float z1 = -30;
   float z2 = 30;
 
-  addRectangle(new Vector(x1, y1, z2), new Vector(x1, y1, z1), new Vector(x1, y2, z1), new Vector(x1, y2, z2), matLeft, roomShapes);
-  addRectangle(new Vector(x2, y2, z2), new Vector(x2, y2, z1), new Vector(x2, y1, z1), new Vector(x2, y1, z2), matLeft, roomShapes);
-  addRectangle(new Vector(x1, y2, z2), new Vector(x1, y2, z1), new Vector(x2, y2, z1), new Vector(x2, y2, z2), matLeft, roomShapes);
+  //addRectangle(new Vector(x1, y1, z2), new Vector(x1, y1, z1), new Vector(x1, y2, z1), new Vector(x1, y2, z2), matLeft, roomShapes);
+  //addRectangle(new Vector(x2, y2, z2), new Vector(x2, y2, z1), new Vector(x2, y1, z1), new Vector(x2, y1, z2), matLeft, roomShapes);
+  //addRectangle(new Vector(x1, y2, z2), new Vector(x1, y2, z1), new Vector(x2, y2, z1), new Vector(x2, y2, z2), matLeft, roomShapes);
   addRectangle(new Vector(x2, y1, z2), new Vector(x2, y1, z1), new Vector(x1, y1, z1), new Vector(x1, y1, z2), matLeft, roomShapes);
-  addRectangle(new Vector(x1, y2, z2), new Vector(x2, y2, z2), new Vector(x2, y1, z2), new Vector(x1, y1, z2), matLeft, roomShapes);
-  addRectangle(new Vector(x1, y1, z1), new Vector(x2, y1, z1), new Vector(x2, y2, z1), new Vector(x1, y2, z1), matLeft, roomShapes);
+  //addRectangle(new Vector(x1, y2, z2), new Vector(x2, y2, z2), new Vector(x2, y1, z2), new Vector(x1, y1, z2), matLeft, roomShapes);
+  //addRectangle(new Vector(x1, y1, z1), new Vector(x2, y1, z1), new Vector(x2, y2, z1), new Vector(x1, y2, z1), matLeft, roomShapes);
   
   for (int z=0;z<60;z+=20){
     for (int x=0;x<60;x+=20){
-      addRectangle(new Vector(-25+x, +9.75, -25+z), new Vector(-25+x, +9.75, -20+z), new Vector(-20+x, +9.75, -20+z), new Vector(-20+x, +9.75, -25+z), light, roomShapes);
+      //addRectangle(new Vector(-25+x, +9.75, -25+z), new Vector(-25+x, +9.75, -20+z), new Vector(-20+x, +9.75, -20+z), new Vector(-20+x, +9.75, -25+z), light, roomShapes);
     }
   }
   

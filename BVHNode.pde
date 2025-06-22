@@ -1,4 +1,4 @@
-int maxDivide = 32; //<>// //<>// //<>//
+int maxDivide = 32; //<>// //<>// //<>// //<>// //<>//
 float delta = 0.1;
 
 class BVHNode {

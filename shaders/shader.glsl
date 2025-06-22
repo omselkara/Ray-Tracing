@@ -16,7 +16,7 @@ struct Pixel {
   uint sampleCount;
 };
 
-layout(std430, binding = 3) buffer Pixels {
+layout(std430, binding = 4) buffer Pixels {
   Pixel pixels[];
 };
 

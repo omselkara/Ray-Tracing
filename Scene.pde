@@ -128,12 +128,24 @@ class Scene {
     }
 
     mainNodeValues.flip();
-
+    FloatBuffer backgroundImg;
+    try{
+      backgroundImg = loadHDRtoFloatBuffer("evening_meadow_4k.hdr");
+      int imgWidth = hdrWidth;
+      int imgHeight = hdrHeight;
+    }
+    catch(Exception e){
+      hdrWidth = -1;
+      backgroundImg = FloatBuffer.allocate(0);
+    }
+        
+    backgroundImg.flip();
 
     ArrayList<FloatBuffer> buffers = new ArrayList<>();
     buffers.add(shapeBuffer);
     buffers.add(BVHBuffer);
     buffers.add(mainNodeValues);
+    buffers.add(backgroundImg);
     println("Shape Count: ", shapeSize);
     println("Node Count: ", nodes.size());
     this.nodes = null;

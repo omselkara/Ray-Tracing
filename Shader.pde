@@ -103,6 +103,8 @@ void initShaderValues(Scene scene){
     gl.glBufferData(GL4.GL_SHADER_STORAGE_BUFFER, buffer.capacity() * Float.BYTES, buffer, GL4.GL_STATIC_DRAW);
     gl.glBindBufferBase(GL4.GL_SHADER_STORAGE_BUFFER, i, ssboId[i]);    
   }
+  
+  
   FloatBuffer pixelBUffer = FloatBuffer.allocate(width * height * 4);
   gl.glBindBuffer(GL4.GL_SHADER_STORAGE_BUFFER, ssboId[ssboId.length-1]);
   gl.glBufferData(GL4.GL_SHADER_STORAGE_BUFFER, pixelBUffer.capacity() * Float.BYTES, pixelBUffer, GL4.GL_DYNAMIC_COPY);
@@ -115,6 +117,12 @@ void initShaderValues(Scene scene){
   gl.glUniform3f(gl.glGetUniformLocation(computeProgram, "sunColor"), sunColor.r,sunColor.g,sunColor.b);
   gl.glUniform1f(gl.glGetUniformLocation(computeProgram, "sunRadius"), sunRadius);
   gl.glUniform1f(gl.glGetUniformLocation(computeProgram, "sunBloomStrength"), sunBloomStrength);
+  gl.glUniform1i(gl.glGetUniformLocation(computeProgram, "hdrWidth"), hdrWidth);  
+  gl.glUniform1i(gl.glGetUniformLocation(computeProgram, "hdrHeight"), hdrHeight);
+  gl.glUniform1i(gl.glGetUniformLocation(computeProgram, "useHDR"), 1);
+  if (hdrWidth==-1){
+    gl.glUniform1i(gl.glGetUniformLocation(computeProgram, "useHDR"), 0);
+  }
   scene.updateCameraValuesShader();
   scene.splittedNodes = null;
   scene.nodes = null;
